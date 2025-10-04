@@ -5,6 +5,16 @@ const CONFIG = {
 	size: 10,
 };
 
+// Animation constants
+const ANIMATION_CONFIG = {
+	colorUpdateInterval: 1000,
+	particleInterpolationX: 0.41,
+	particleInterpolationY: 0.25,
+	sizeRatio: 2.2,
+	clearPadding: 10,
+	editorCheckInterval: 100,
+};
+
 const createTrail = (options) => {
 	const totalParticles = options?.length || 8;
 	let particlesColor = options?.color || COLORS[0];
@@ -14,29 +24,40 @@ const createTrail = (options) => {
 	let particles = [];
 	let width, height;
 	let sizeX = options?.size || 3;
-	let sizeY = sizeX * 2.2;
+	let sizeY = sizeX * ANIMATION_CONFIG.sizeRatio;
 	let cursorsInitted = false;
+	let colorUpdateTimeoutId = null;
+	let lastColorUpdate = 0;
 
-	window.setInterval(() => {
+	// Optimized color update using RAF instead of setInterval
+	const updateCursorColors = () => {
+		const now = Date.now();
+		if (now - lastColorUpdate < ANIMATION_CONFIG.colorUpdateInterval) {
+			colorUpdateTimeoutId = requestAnimationFrame(updateCursorColors);
+			return;
+		}
+		lastColorUpdate = now;
+
 		const cursorElements = document.querySelectorAll(".cursor");
 		if (cursorElements.length > 0) {
-			[...cursorElements].forEach((cursor) => {
-				if (cursor) {
-					let newIndex = Math.floor(Math.random() * COLORS.length);
-					const color = COLORS[newIndex];
-					particlesColor = color;
-					cursor.style.backgroundColor = color;
-					cursor.style.boxShadow = `0 0 12px ${color}`;
-					cursor.style.borderRadius = "1px";
+			const newIndex = Math.floor(Math.random() * COLORS.length);
+			const color = COLORS[newIndex];
+			particlesColor = color;
+
+			for (const cursorElement of cursorElements) {
+				if (cursorElement) {
+					cursorElement.style.backgroundColor = color;
+					cursorElement.style.boxShadow = `0 0 12px ${color}`;
+					cursorElement.style.borderRadius = "1px";
 				}
-				else {
-					console.log("%c[CursorAnimation]", "color:rgb(183, 0, 255); font-weight: bold;", "Rainbow Cursor Animation is not working properly, cursor element not found.");
-				}
-			});
+			}
 		}
-	}, 1000);
+		colorUpdateTimeoutId = requestAnimationFrame(updateCursorColors);
+	};
+	colorUpdateTimeoutId = requestAnimationFrame(updateCursorColors);
 
 	function updateSize(x, y) {
+		if (width === x && height === y) return; // Skip if unchanged
 		width = x;
 		height = y;
 		canvas.width = x;
@@ -66,8 +87,8 @@ const createTrail = (options) => {
 	}
 
 	function calculatePosition() {
-		let x = cursor.x,
-			y = cursor.y;
+		let x = cursor.x;
+		let y = cursor.y;
 
 		const particleCount = particles.length;
 		for (let i = 0; i < particleCount; i++) {
@@ -77,8 +98,8 @@ const createTrail = (options) => {
 			particlePos.x = x;
 			particlePos.y = y;
 
-			x += (nextParticlePos.x - particlePos.x) * 0.41;
-			y += (nextParticlePos.y - particlePos.y) * 0.25;
+			x += (nextParticlePos.x - particlePos.x) * ANIMATION_CONFIG.particleInterpolationX;
+			y += (nextParticlePos.y - particlePos.y) * ANIMATION_CONFIG.particleInterpolationY;
 		}
 	}
 
@@ -87,15 +108,22 @@ const createTrail = (options) => {
 		context.fillStyle = particlesColor;
 		context.globalAlpha = 1.0;
 
+		// Cache values used in loop
+		const maxDistance = Math.sqrt(width * width + height * height);
+		const minSize = Math.min(sizeX, sizeY);
+		const cursorX = cursor.x;
+		const cursorY = cursor.y;
+
 		for (let particleIndex = 0; particleIndex < totalParticles; particleIndex++) {
 			const pos = particles[particleIndex].position;
-			const distance = Math.sqrt(Math.pow(cursor.x - pos.x, 2) + Math.pow(cursor.y - pos.y, 2));
-			const maxDistance = Math.sqrt(Math.pow(width, 2) + Math.pow(height, 2));
+			const dx = cursorX - pos.x;
+			const dy = cursorY - pos.y;
+			const distance = Math.sqrt(dx * dx + dy * dy);
 			const sizeFactor = 1 - distance / maxDistance;
 
-			context.lineWidth = Math.min(sizeX, sizeY) * sizeFactor;
+			context.lineWidth = minSize * sizeFactor;
 
-			if (particleIndex == 0) {
+			if (particleIndex === 0) {
 				context.moveTo(pos.x, pos.y);
 			} else {
 				context.lineTo(pos.x, pos.y);
@@ -111,8 +139,8 @@ const createTrail = (options) => {
 		context.beginPath();
 		context.lineJoin = "round";
 		context.strokeStyle = particlesColor;
-		context.lineWidth = Math.min(sizeX, sizeY);
-		let offset = -sizeX / 2 + sizeY / 2;
+		context.lineWidth = minSize;
+		const offset = -sizeX / 2 + sizeY / 2;
 		for (let particleIndex = 0; particleIndex < totalParticles; particleIndex++) {
 			const pos = particles[particleIndex].position;
 			if (particleIndex === 0) {
@@ -132,19 +160,22 @@ const createTrail = (options) => {
 	function updateParticles() {
 		if (!cursorsInitted) return;
 
-		let minX = Infinity,
-			minY = Infinity,
-			maxX = -Infinity,
-			maxY = -Infinity;
-		particles.forEach((particle) => {
-			minX = Math.min(minX, particle.position.x);
-			minY = Math.min(minY, particle.position.y);
-			maxX = Math.max(maxX, particle.position.x);
-			maxY = Math.max(maxY, particle.position.y);
-		});
+		let minX = Infinity;
+		let minY = Infinity;
+		let maxX = -Infinity;
+		let maxY = -Infinity;
+
+		// Single loop to find bounds
+		for (let i = 0; i < particles.length; i++) {
+			const pos = particles[i].position;
+			if (pos.x < minX) minX = pos.x;
+			if (pos.y < minY) minY = pos.y;
+			if (pos.x > maxX) maxX = pos.x;
+			if (pos.y > maxY) maxY = pos.y;
+		}
 
 		if (minX !== lastMinX || minY !== lastMinY || maxX !== lastMaxX || maxY !== lastMaxY) {
-			const padding = 10;
+			const padding = ANIMATION_CONFIG.clearPadding;
 			context.clearRect(
 				minX - padding,
 				minY - padding,
@@ -163,7 +194,28 @@ const createTrail = (options) => {
 
 	function updateCursorSize(newSize, newSizeY) {
 		sizeX = newSize;
-		if (newSizeY) sizeY = newSizeY;
+		if (newSizeY) {
+			sizeY = newSizeY;
+		} else {
+			sizeY = newSize * ANIMATION_CONFIG.sizeRatio;
+		}
+	}
+
+	function forceFullClear() {
+		if (canvas && context) {
+			context.clearRect(0, 0, canvas.width, canvas.height);
+		}
+		lastMinX = Infinity;
+		lastMinY = Infinity;
+		lastMaxX = -Infinity;
+		lastMaxY = -Infinity;
+	}
+
+	function cleanup() {
+		if (colorUpdateTimeoutId) {
+			cancelAnimationFrame(colorUpdateTimeoutId);
+			colorUpdateTimeoutId = null;
+		}
 	}
 
 	return {
@@ -171,13 +223,15 @@ const createTrail = (options) => {
 		move,
 		updateSize,
 		updateCursorSize,
+		forceFullClear,
+		cleanup,
 	};
 };
 
 const createCursorHandler = async (handlerFunctions) => {
 	let editor;
 	while (!editor) {
-		await new Promise((resolve) => setTimeout(resolve, 100));
+		await new Promise((resolve) => setTimeout(resolve, ANIMATION_CONFIG.editorCheckInterval));
 		editor = document.querySelector(".part.editor");
 	}
 	handlerFunctions?.onStarted(editor);
@@ -186,6 +240,7 @@ const createCursorHandler = async (handlerFunctions) => {
 	let cursorId = 0;
 	let lastObjects = {};
 	let lastCursor = 0;
+	let contentChangeTimeout = null;
 
 	const createCursorUpdateHandler = (target, cursorId, cursorHolder, minimap) => {
 		let lastX, lastY;
@@ -195,18 +250,18 @@ const createCursorHandler = async (handlerFunctions) => {
 				return;
 			}
 
-			const { left: newX, top: newY } = target.getBoundingClientRect();
-			let revX = newX - editorX,
-				revY = newY - editorY;
+			const rect = target.getBoundingClientRect();
+			const revX = rect.left - editorX;
+			const revY = rect.top - editorY;
 
-			if (revX == lastX && revY == lastY && lastCursor == cursorId) return;
+			if (revX === lastX && revY === lastY && lastCursor === cursorId) return;
 			lastX = revX;
 			lastY = revY;
 
 			if (revX <= 0 || revY <= 0) return;
-			if (target.style.visibility == "hidden") return;
-			if (minimap && minimap.offsetWidth != 0 && minimap.getBoundingClientRect().left <= newX) return;
-			if (cursorHolder.getBoundingClientRect().left > newX) return;
+			if (target.style.visibility === "hidden") return;
+			if (minimap && minimap.offsetWidth !== 0 && minimap.getBoundingClientRect().left <= rect.left) return;
+			if (cursorHolder.getBoundingClientRect().left > rect.left) return;
 
 			lastCursor = cursorId;
 			handlerFunctions?.onCursorPositionUpdated(revX, revY);
@@ -219,27 +274,30 @@ const createCursorHandler = async (handlerFunctions) => {
 	let lastCursorCount = 0;
 
 	const updateCursors = () => {
-		let now = [],
-			count = 0;
+		const now = [];
+		let count = 0;
 		const cursorElements = editor.getElementsByClassName("cursor");
+
 		for (const target of cursorElements) {
-			if (target.style.visibility != "hidden") count++;
+			if (target.style.visibility !== "hidden") count++;
+
 			if (target.hasAttribute("cursorId")) {
 				now.push(+target.getAttribute("cursorId"));
 				continue;
 			}
-			let thisCursorId = cursorId++;
+
+			const thisCursorId = cursorId++;
 			now.push(thisCursorId);
 			lastObjects[thisCursorId] = target;
 			target.setAttribute("cursorId", thisCursorId);
-			let cursorHolder = target.parentElement.parentElement.parentElement;
-			let minimap = cursorHolder.parentElement.querySelector(".minimap");
+			const cursorHolder = target.parentElement.parentElement.parentElement;
+			const minimap = cursorHolder.parentElement.querySelector(".minimap");
 			createCursorUpdateHandler(target, thisCursorId, cursorHolder, minimap);
 		}
 
 		if (count !== lastCursorCount) {
-			let visibility = count <= 1 ? "visible" : "hidden";
-			if (visibility != lastVisibility) {
+			const visibility = count <= 1 ? "visible" : "hidden";
+			if (visibility !== lastVisibility) {
 				handlerFunctions?.onCursorVisibilityChanged(visibility);
 				lastVisibility = visibility;
 			}
@@ -247,16 +305,22 @@ const createCursorHandler = async (handlerFunctions) => {
 		}
 
 		for (const id in lastObjects) {
-			if (now.includes(+id)) continue;
-			delete lastObjects[+id];
+			if (!now.includes(+id)) {
+				delete lastObjects[+id];
+			}
 		}
 		requestAnimationFrame(updateCursors);
 	};
 	requestAnimationFrame(updateCursors);
 
 	function updateLoop() {
-		let { left: editorX, top: editorY } = editor.getBoundingClientRect();
-		for (const handler of updateHandlers) handler(editorX, editorY);
+		const editorRect = editor.getBoundingClientRect();
+		const editorX = editorRect.left;
+		const editorY = editorRect.top;
+
+		for (const handler of updateHandlers) {
+			handler(editorX, editorY);
+		}
 		handlerFunctions?.onLoop();
 		requestAnimationFrame(updateLoop);
 	}
@@ -266,6 +330,24 @@ const createCursorHandler = async (handlerFunctions) => {
 	}
 	new ResizeObserver(updateEditorSize).observe(editor);
 	updateEditorSize();
+
+	const contentObserver = new MutationObserver(() => {
+		if (contentChangeTimeout) {
+			clearTimeout(contentChangeTimeout);
+		}
+		contentChangeTimeout = setTimeout(() => {
+			handlerFunctions?.onContentChanged?.();
+		}, 16); // ~1 frame
+	});
+
+	const viewLines = editor.querySelector(".view-lines");
+	if (viewLines) {
+		contentObserver.observe(viewLines, {
+			childList: true,
+			subtree: true,
+			characterData: true,
+		});
+	}
 
 	updateLoop();
 	handlerFunctions?.onReady();
@@ -310,6 +392,10 @@ createCursorHandler({
 
 	onCursorVisibilityChanged: (visibility) => {
 		cursorCanvas.style.visibility = visibility;
+	},
+
+	onContentChanged: () => {
+		rainbowCursorHandle.forceFullClear();
 	},
 
 	onLoop: () => {
