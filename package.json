@@ -5,7 +5,8 @@
   "main": "mouse.js",
   "scripts": {
     "lint": "eslint mouse.js",
-    "lint:fix": "eslint mouse.js --fix"
+    "lint:fix": "eslint mouse.js --fix",
+    "validate": "node validate-config.js mouse.js"
   },
   "keywords": [
     "vscode",

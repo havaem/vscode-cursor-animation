@@ -4,6 +4,15 @@
 
 A lightweight, performant script that creates a beautiful rainbow trail effect following your cursor in VS Code Editor. Modified and enhanced from the Editor Cursor Animation library.
 
+## 📚 Quick Links
+
+- [Installation Guide](#-installation--usage)
+- [Configuration](#%EF%B8%8F-configuration)
+- [Examples](examples/)
+- [FAQ](FAQ.md)
+- [Contributing](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
+
 ## ✨ Features
 
 -   **🌈 Rainbow Effect**: Dynamic rainbow-colored trail following your cursor
@@ -394,6 +403,23 @@ See [JSDoc comments](mouse.js) in the source code for detailed API documentation
 Key functions:
 - `createTrail(options)` - Creates trail animation system
 - `createCursorHandler(handlerFunctions)` - Manages cursor tracking
+- `validateConfig(config)` - Validates configuration values
+
+### Validation
+
+Before using a custom configuration, validate it:
+
+```bash
+npm run validate
+# or
+node validate-config.js mouse.js
+```
+
+### Resources
+
+- [FAQ.md](FAQ.md) - Frequently Asked Questions
+- [CHANGELOG.md](CHANGELOG.md) - Version history and changes
+- [examples/](examples/) - Pre-made configuration examples
 
 ## 🗺️ Roadmap
 
