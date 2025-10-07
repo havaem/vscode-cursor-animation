@@ -6,6 +6,27 @@
  */
 
 /**
+ * Validates configuration values and logs warnings for invalid settings
+ * @param {Object} config - Configuration object to validate
+ * @returns {boolean} True if configuration is valid
+ */
+function validateConfig(config) {
+	let isValid = true;
+	
+	if (config.trailLength < 1 || config.trailLength > 100) {
+		console.warn("[CursorAnimation] trailLength should be between 1 and 100. Current value:", config.trailLength);
+		isValid = false;
+	}
+	
+	if (config.size < 1 || config.size > 50) {
+		console.warn("[CursorAnimation] size should be between 1 and 50. Current value:", config.size);
+		isValid = false;
+	}
+	
+	return isValid;
+}
+
+/**
  * Color palette for rainbow effect
  * @type {string[]}
  */
@@ -69,8 +90,8 @@ const createTrail = (options) => {
 		return null;
 	}
 	
-	let cursor = { x: 0, y: 0 };
-	let particles = [];
+	const cursor = { x: 0, y: 0 };
+	const particles = [];
 	let width, height;
 	let sizeX = options?.size || 3;
 	let sizeY = sizeX * ANIMATION_CONFIG.sizeRatio;
@@ -170,6 +191,9 @@ const createTrail = (options) => {
 		let y = cursor.y;
 
 		const particleCount = particles.length;
+		const interpX = ANIMATION_CONFIG.particleInterpolationX;
+		const interpY = ANIMATION_CONFIG.particleInterpolationY;
+		
 		for (let i = 0; i < particleCount; i++) {
 			const nextParticlePos = (particles[i + 1] || particles[0]).position;
 			const particlePos = particles[i].position;
@@ -177,8 +201,8 @@ const createTrail = (options) => {
 			particlePos.x = x;
 			particlePos.y = y;
 
-			x += (nextParticlePos.x - particlePos.x) * ANIMATION_CONFIG.particleInterpolationX;
-			y += (nextParticlePos.y - particlePos.y) * ANIMATION_CONFIG.particleInterpolationY;
+			x += (nextParticlePos.x - particlePos.x) * interpX;
+			y += (nextParticlePos.y - particlePos.y) * interpY;
 		}
 	}
 
@@ -191,12 +215,13 @@ const createTrail = (options) => {
 		context.fillStyle = particlesColor;
 		context.globalAlpha = 1.0;
 
-		// Cache values used in loop
+		// Cache values used in loop to avoid repeated calculations
 		const maxDistance = Math.sqrt(width * width + height * height);
 		const minSize = Math.min(sizeX, sizeY);
 		const cursorX = cursor.x;
 		const cursorY = cursor.y;
 
+		// Draw the main trail path
 		for (let particleIndex = 0; particleIndex < totalParticles; particleIndex++) {
 			const pos = particles[particleIndex].position;
 			const dx = cursorX - pos.x;
@@ -212,6 +237,8 @@ const createTrail = (options) => {
 				context.lineTo(pos.x, pos.y);
 			}
 		}
+		
+		// Create closed path by drawing back along the bottom edge
 		for (let particleIndex = totalParticles - 1; particleIndex >= 0; particleIndex--) {
 			const pos = particles[particleIndex].position;
 			context.lineTo(pos.x, pos.y + sizeY);
@@ -219,6 +246,7 @@ const createTrail = (options) => {
 		context.closePath();
 		context.fill();
 
+		// Draw center stroke for enhanced visibility
 		context.beginPath();
 		context.lineJoin = "round";
 		context.strokeStyle = particlesColor;
@@ -358,9 +386,9 @@ const createCursorHandler = async (handlerFunctions) => {
 	
 	handlerFunctions?.onStarted(editor);
 
-	let updateHandlers = [];
+	const updateHandlers = [];
 	let cursorId = 0;
-	let lastObjects = {};
+	const lastObjects = {};
 	let lastCursor = 0;
 	let contentChangeTimeout = null;
 
@@ -497,6 +525,9 @@ const createCursorHandler = async (handlerFunctions) => {
 // Global state for cursor animation
 let cursorCanvas, rainbowCursorHandle;
 
+// Validate configuration before initialization
+validateConfig(CONFIG);
+
 // Initialize cursor handler with callbacks
 createCursorHandler({
 	onReady: () => {
@@ -520,29 +551,46 @@ createCursorHandler({
 			size: CONFIG.size,
 			canvas: cursorCanvas,
 		});
+		
+		// Handle case where trail creation failed
+		if (!rainbowCursorHandle) {
+			console.error("[CursorAnimation] Failed to create cursor trail");
+		}
 	},
 
 	onCursorPositionUpdated: (x, y) => {
-		rainbowCursorHandle.move(x, y);
+		if (rainbowCursorHandle) {
+			rainbowCursorHandle.move(x, y);
+		}
 	},
 
 	onEditorSizeUpdated: (x, y) => {
-		rainbowCursorHandle.updateSize(x, y);
+		if (rainbowCursorHandle) {
+			rainbowCursorHandle.updateSize(x, y);
+		}
 	},
 
 	onCursorSizeUpdated: (x, y) => {
-		rainbowCursorHandle.updateCursorSize(x, y);
+		if (rainbowCursorHandle) {
+			rainbowCursorHandle.updateCursorSize(x, y);
+		}
 	},
 
 	onCursorVisibilityChanged: (visibility) => {
-		cursorCanvas.style.visibility = visibility;
+		if (cursorCanvas) {
+			cursorCanvas.style.visibility = visibility;
+		}
 	},
 
 	onContentChanged: () => {
-		rainbowCursorHandle.forceFullClear();
+		if (rainbowCursorHandle) {
+			rainbowCursorHandle.forceFullClear();
+		}
 	},
 
 	onLoop: () => {
-		rainbowCursorHandle.updateParticles();
+		if (rainbowCursorHandle) {
+			rainbowCursorHandle.updateParticles();
+		}
 	},
 });
