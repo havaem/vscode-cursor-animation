@@ -1,0 +1,29 @@
+{
+  "name": "vscode-cursor-animation",
+  "version": "1.0.0",
+  "description": "A script that creates a rainbow trail effect following the cursor in VS Code Editor",
+  "main": "mouse.js",
+  "scripts": {
+    "lint": "eslint mouse.js",
+    "lint:fix": "eslint mouse.js --fix"
+  },
+  "keywords": [
+    "vscode",
+    "cursor",
+    "animation",
+    "rainbow",
+    "trail"
+  ],
+  "author": "havaem",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/havaem/vscode-cursor-animation.git"
+  },
+  "bugs": {
+    "url": "https://github.com/havaem/vscode-cursor-animation/issues"
+  }
+}

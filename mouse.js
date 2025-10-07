@@ -1,11 +1,39 @@
+/**
+ * Rainbow Cursor Animation for VS Code
+ * Creates a rainbow trail effect following the cursor in VS Code Editor
+ * @author havaem
+ * @version 1.0.0
+ */
+
+/**
+ * Color palette for rainbow effect
+ * @type {string[]}
+ */
 const COLORS = ["#ffffff", "#40fff5", "#ecff40", "#63ff40", "#A052FF"];
+
+/**
+ * User-configurable settings
+ * @type {Object}
+ * @property {string} color - Default color from COLORS array
+ * @property {number} trailLength - Length of the trail following the cursor
+ * @property {number} size - Size of the cursor effect
+ */
 const CONFIG = {
 	color: COLORS[0],
 	trailLength: 10,
 	size: 10,
 };
 
-// Animation constants
+/**
+ * Internal animation configuration constants
+ * @type {Object}
+ * @property {number} colorUpdateInterval - Interval for color updates in milliseconds
+ * @property {number} particleInterpolationX - Horizontal interpolation factor for particle movement
+ * @property {number} particleInterpolationY - Vertical interpolation factor for particle movement
+ * @property {number} sizeRatio - Aspect ratio for cursor size
+ * @property {number} clearPadding - Padding for canvas clear operations
+ * @property {number} editorCheckInterval - Interval for checking editor availability in milliseconds
+ */
 const ANIMATION_CONFIG = {
 	colorUpdateInterval: 1000,
 	particleInterpolationX: 0.41,
@@ -15,11 +43,32 @@ const ANIMATION_CONFIG = {
 	editorCheckInterval: 100,
 };
 
+/**
+ * Creates a trail effect for the cursor
+ * @param {Object} options - Configuration options
+ * @param {number} [options.length=8] - Number of particles in the trail
+ * @param {string} [options.color] - Initial color for particles
+ * @param {number} [options.size=3] - Size of the cursor effect
+ * @param {HTMLCanvasElement} options.canvas - Canvas element for rendering
+ * @returns {Object} Trail controller with update methods
+ */
 const createTrail = (options) => {
 	const totalParticles = options?.length || 8;
 	let particlesColor = options?.color || COLORS[0];
 	const canvas = options?.canvas;
+	
+	// Validate canvas
+	if (!canvas) {
+		console.error("[CursorAnimation] Canvas element is required");
+		return null;
+	}
+	
 	const context = canvas.getContext("2d");
+	if (!context) {
+		console.error("[CursorAnimation] Failed to get 2D context from canvas");
+		return null;
+	}
+	
 	let cursor = { x: 0, y: 0 };
 	let particles = [];
 	let width, height;
@@ -29,7 +78,10 @@ const createTrail = (options) => {
 	let colorUpdateTimeoutId = null;
 	let lastColorUpdate = 0;
 
-	// Optimized color update using RAF instead of setInterval
+	/**
+	 * Updates cursor colors using requestAnimationFrame for smooth animation
+	 * Changes colors at intervals specified by ANIMATION_CONFIG.colorUpdateInterval
+	 */
 	const updateCursorColors = () => {
 		const now = Date.now();
 		if (now - lastColorUpdate < ANIMATION_CONFIG.colorUpdateInterval) {
@@ -56,6 +108,11 @@ const createTrail = (options) => {
 	};
 	colorUpdateTimeoutId = requestAnimationFrame(updateCursorColors);
 
+	/**
+	 * Updates the canvas size
+	 * @param {number} x - New width
+	 * @param {number} y - New height
+	 */
 	function updateSize(x, y) {
 		if (width === x && height === y) return; // Skip if unchanged
 		width = x;
@@ -64,6 +121,11 @@ const createTrail = (options) => {
 		canvas.height = y;
 	}
 
+	/**
+	 * Moves the cursor to a new position
+	 * @param {number} x - X coordinate
+	 * @param {number} y - Y coordinate
+	 */
 	function move(x, y) {
 		x += sizeX / 2;
 		cursor.x = x;
@@ -76,16 +138,33 @@ const createTrail = (options) => {
 		}
 	}
 
+	/**
+	 * Represents a particle in the trail effect
+	 */
 	class Particle {
+		/**
+		 * Creates a new particle
+		 * @param {number} x - Initial X position
+		 * @param {number} y - Initial Y position
+		 */
 		constructor (x, y) {
 			this.position = { x, y };
 		}
 	}
 
+	/**
+	 * Adds a new particle to the trail
+	 * @param {number} x - X position
+	 * @param {number} y - Y position
+	 */
 	function addParticle(x, y) {
 		particles.push(new Particle(x, y));
 	}
 
+	/**
+	 * Calculates and updates particle positions based on cursor movement
+	 * Uses interpolation for smooth trail animation
+	 */
 	function calculatePosition() {
 		let x = cursor.x;
 		let y = cursor.y;
@@ -103,6 +182,10 @@ const createTrail = (options) => {
 		}
 	}
 
+	/**
+	 * Renders the trail path on the canvas
+	 * Creates a gradient effect based on distance from cursor
+	 */
 	function drawPath() {
 		context.beginPath();
 		context.fillStyle = particlesColor;
@@ -157,6 +240,10 @@ const createTrail = (options) => {
 		lastMaxX = -Infinity,
 		lastMaxY = -Infinity;
 
+	/**
+	 * Updates particle positions and redraws the trail
+	 * Optimizes canvas clearing by only clearing affected areas
+	 */
 	function updateParticles() {
 		if (!cursorsInitted) return;
 
@@ -192,6 +279,11 @@ const createTrail = (options) => {
 		drawPath();
 	}
 
+	/**
+	 * Updates the cursor size
+	 * @param {number} newSize - New width
+	 * @param {number} [newSizeY] - Optional new height (calculated from width if not provided)
+	 */
 	function updateCursorSize(newSize, newSizeY) {
 		sizeX = newSize;
 		if (newSizeY) {
@@ -201,6 +293,10 @@ const createTrail = (options) => {
 		}
 	}
 
+	/**
+	 * Forces a complete clear of the entire canvas
+	 * Resets bounding box tracking
+	 */
 	function forceFullClear() {
 		if (canvas && context) {
 			context.clearRect(0, 0, canvas.width, canvas.height);
@@ -211,6 +307,9 @@ const createTrail = (options) => {
 		lastMaxY = -Infinity;
 	}
 
+	/**
+	 * Cleans up resources and stops animations
+	 */
 	function cleanup() {
 		if (colorUpdateTimeoutId) {
 			cancelAnimationFrame(colorUpdateTimeoutId);
@@ -228,12 +327,35 @@ const createTrail = (options) => {
 	};
 };
 
+/**
+ * Creates a cursor handler that manages cursor tracking and animation in VS Code
+ * @param {Object} handlerFunctions - Callback functions for cursor events
+ * @param {Function} [handlerFunctions.onReady] - Called when handler is ready
+ * @param {Function} [handlerFunctions.onStarted] - Called when handler starts with editor element
+ * @param {Function} [handlerFunctions.onCursorPositionUpdated] - Called when cursor position changes
+ * @param {Function} [handlerFunctions.onEditorSizeUpdated] - Called when editor size changes
+ * @param {Function} [handlerFunctions.onCursorSizeUpdated] - Called when cursor size changes
+ * @param {Function} [handlerFunctions.onCursorVisibilityChanged] - Called when cursor visibility changes
+ * @param {Function} [handlerFunctions.onContentChanged] - Called when content changes
+ * @param {Function} [handlerFunctions.onLoop] - Called on each animation frame
+ * @returns {Promise<void>}
+ */
 const createCursorHandler = async (handlerFunctions) => {
 	let editor;
-	while (!editor) {
+	let retryCount = 0;
+	const maxRetries = 100;
+	
+	while (!editor && retryCount < maxRetries) {
 		await new Promise((resolve) => setTimeout(resolve, ANIMATION_CONFIG.editorCheckInterval));
 		editor = document.querySelector(".part.editor");
+		retryCount++;
 	}
+	
+	if (!editor) {
+		console.error("[CursorAnimation] Failed to find VS Code editor element after maximum retries");
+		return;
+	}
+	
 	handlerFunctions?.onStarted(editor);
 
 	let updateHandlers = [];
@@ -242,6 +364,14 @@ const createCursorHandler = async (handlerFunctions) => {
 	let lastCursor = 0;
 	let contentChangeTimeout = null;
 
+	/**
+	 * Creates an update handler for a specific cursor element
+	 * @param {HTMLElement} target - The cursor element to track
+	 * @param {number} cursorId - Unique identifier for this cursor
+	 * @param {HTMLElement} cursorHolder - The container element for the cursor
+	 * @param {HTMLElement} minimap - The minimap element (if present)
+	 * @returns {void}
+	 */
 	const createCursorUpdateHandler = (target, cursorId, cursorHolder, minimap) => {
 		let lastX, lastY;
 		const update = (editorX, editorY) => {
@@ -273,6 +403,10 @@ const createCursorHandler = async (handlerFunctions) => {
 	let lastVisibility = "hidden";
 	let lastCursorCount = 0;
 
+	/**
+	 * Scans for cursor elements and manages their tracking
+	 * Automatically handles multiple cursors
+	 */
 	const updateCursors = () => {
 		const now = [];
 		let count = 0;
@@ -313,6 +447,9 @@ const createCursorHandler = async (handlerFunctions) => {
 	};
 	requestAnimationFrame(updateCursors);
 
+	/**
+	 * Main animation loop for updating cursor positions
+	 */
 	function updateLoop() {
 		const editorRect = editor.getBoundingClientRect();
 		const editorX = editorRect.left;
@@ -325,12 +462,16 @@ const createCursorHandler = async (handlerFunctions) => {
 		requestAnimationFrame(updateLoop);
 	}
 
+	/**
+	 * Updates the editor size when it changes
+	 */
 	function updateEditorSize() {
 		handlerFunctions?.onEditorSizeUpdated(editor.clientWidth, editor.clientHeight);
 	}
 	new ResizeObserver(updateEditorSize).observe(editor);
 	updateEditorSize();
 
+	// Observe content changes to trigger canvas clear when needed
 	const contentObserver = new MutationObserver(() => {
 		if (contentChangeTimeout) {
 			clearTimeout(contentChangeTimeout);
@@ -353,7 +494,10 @@ const createCursorHandler = async (handlerFunctions) => {
 	handlerFunctions?.onReady();
 };
 
+// Global state for cursor animation
 let cursorCanvas, rainbowCursorHandle;
+
+// Initialize cursor handler with callbacks
 createCursorHandler({
 	onReady: () => {
 		if (cursorCanvas) {
